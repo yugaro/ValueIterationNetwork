@@ -1,128 +1,137 @@
-from __future__ import print_function
+import time
 import argparse
-import pickle
-import numpy as np
+# import numpy as np
 
-import chainer
-import chainer.links as L
-from chainer import training
-from chainer.training import extensions
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
-from vin import VIN
+# import torchvision.transforms as transforms
 
-
-class MapData(chainer.dataset.DatasetMixin):
-    def __init__(self, im, value, state, label):
-        self.im = np.concatenate(
-            (np.expand_dims(im, 1), np.expand_dims(value, 1)),
-            axis=1).astype(dtype=np.float32)
-        self.s1, self.s2 = np.split(state, [1], axis=1)
-        self.s1 = np.reshape(self.s1, self.s1.shape[0])
-        self.s2 = np.reshape(self.s2, self.s2.shape[0])
-        self.t = label.astype(np.int32)
-
-    def __len__(self):
-        return len(self.im)
-
-    def get_example(self, i):
-        return self.im[i], self.s1[i], self.s2[i], self.t[i]
+# import matplotlib.pyplot as plt
+from dataset.dataset import GridworldData
+from utility.utils import print_header
+from utility.utils import print_stats
+from utility.utils import get_stats
+from model import VIN
 
 
-def process_map_data(path):
-    with open(path, mode='rb') as f:
-        data = pickle.load(f)
-
-    im_data = data['im']
-    value_data = data['value']
-    state_data = data['state']
-    label_data = data['label']
-
-    num = im_data.shape[0]
-    num_train = int(num - num / 5)
-
-    im_train = im_data[0:num_train]
-    value_train = value_data[0:num_train]
-    state_train = state_data[0:num_train]
-    label_train = label_data[0:num_train]
-
-    im_test = im_data[num_train:-1]
-    value_test = value_data[num_train:-1]
-    state_test = state_data[num_train:-1]
-    label_test = label_data[num_train:-1]
-
-    train = MapData(im_train, value_train, state_train, label_train)
-    test = MapData(im_test, value_test, state_test, label_test)
-
-    return train, test
-
-
-class TestModeEvaluator(extensions.Evaluator):
-    def evaluate(self):
-        model = self.get_target('main')
-        model.predictor.train = False
-        ret = super(TestModeEvaluator, self).evaluate()
-        model.predictor.train = True
-        return ret
+def train(net: VIN, trainloader, config, criterion, optimizer):
+    print_header()
+    # Automatically select device to make the code device agnostic
+    print(torch.cuda.is_available())
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    for epoch in range(config.epochs):  # Loop over dataset multiple times
+        avg_error, avg_loss, num_batches = 0.0, 0.0, 0.0
+        start_time = time.time()
+        for i, data in enumerate(trainloader):  # Loop over batches of data
+            # Get input batch
+            X, S1, S2, labels = [d.to(device) for d in data]
+            if X.size()[0] != config.batch_size:
+                continue  # Drop those data, if not enough for a batch
+            net = net.to(device)
+            # Zero the parameter gradients
+            optimizer.zero_grad()
+            # Forward pass
+            outputs, predictions = net(X, S1, S2, config.k)
+            # Loss
+            loss = criterion(outputs, labels)
+            # Backward pass
+            loss.backward()
+            # Update params
+            optimizer.step()
+            # Calculate Loss and Error
+            loss_batch, error_batch = get_stats(loss, predictions, labels)
+            avg_loss += loss_batch
+            avg_error += error_batch
+            num_batches += 1
+        time_duration = time.time() - start_time
+        # Print epoch logs
+        print_stats(epoch, avg_loss, avg_error, num_batches, time_duration)
+    print('\nFinished training. \n')
 
 
-def main():
-    parser = argparse.ArgumentParser(description='VIN')
-    parser.add_argument('--data', '-d', type=str, default='./map_data.pkl',
-                        help='Path to map data generated with script_make_data.py')
-    parser.add_argument('--batchsize', '-b', type=int, default=100,
-                        help='Number of images in each mini-batch')
-    parser.add_argument('--epoch', '-e', type=int, default=30,
-                        help='Number of sweeps over the dataset to train')
-    parser.add_argument('--gpu', '-g', type=int, default=-1,
-                        help='GPU ID (negative value indicates CPU)')
-    parser.add_argument('--out', '-o', default='result',
-                        help='Directory to output the result')
-    parser.add_argument('--resume', '-r', default='',
-                        help='Resume the training from snapshot')
-    parser.add_argument('--unit', '-u', type=int, default=1000,
-                        help='Number of units')
-    args = parser.parse_args()
+def test(net: VIN, testloader, config):
+    total, correct = 0.0, 0.0
+    # Automatically select device, device agnostic
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    for i, data in enumerate(testloader):
+        # Get inputs
+        X, S1, S2, labels = [d.to(device) for d in data]
+        if X.size()[0] != config.batch_size:
+            continue  # Drop those data, if not enough for a batch
+        net = net.to(device)
+        # Forward pass
+        outputs, predictions = net(X, S1, S2, config.k)
+        # Select actions with max scores(logits)
+        _, predicted = torch.max(outputs, dim=1, keepdim=True)
+        # Unwrap autograd.Variable to Tensor
+        predicted = predicted.data
+        # Compute test accuracy
+        correct += (torch.eq(torch.squeeze(predicted), labels)).sum()
+        total += labels.size()[0]
+    print('Test Accuracy: {:.2f}%'.format(100 * (correct / total)))
 
-    print('GPU: {}'.format(args.gpu))
-    print('# unit: {}'.format(args.unit))
-    print('# Minibatch-size: {}'.format(args.batchsize))
-    print('# epoch: {}'.format(args.epoch))
-    print('')
 
-    model = L.Classifier(VIN(k=20))
-    if args.gpu >= 0:
-        chainer.cuda.get_device(args.gpu).use()
-        model.to_gpu()
-
-    optimizer = chainer.optimizers.Adam()
-    optimizer.setup(model)
-
-    train, test = process_map_data(args.data)
-
-    train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
-    test_iter = chainer.iterators.SerialIterator(test, args.batchsize,
-                                                 repeat=False, shuffle=False)
-
-    # Set up a trainer
-    updater = training.StandardUpdater(train_iter, optimizer, device=args.gpu)
-    trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
-    trainer.extend(TestModeEvaluator(test_iter, model, device=args.gpu))
-    trainer.extend(extensions.dump_graph('main/loss'))
-    trainer.extend(extensions.snapshot(), trigger=(1, 'epoch'))
-    trainer.extend(extensions.snapshot_object(
-        model, 'model_iter_{.updater.iteration}'), trigger=(1, 'epoch'))
-    trainer.extend(extensions.LogReport())
-
-    trainer.extend(extensions.PrintReport(
-        ['epoch', 'main/loss', 'validation/main/loss',
-         'main/accuracy', 'validation/main/accuracy', 'elapsed_time']))
-
-    trainer.extend(extensions.ProgressBar())
-
-    if args.resume:
-        chainer.serializers.load_npz(args.resume, trainer)
-
-    trainer.run()
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    # Parsing training parameters
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--datafile',
+        type=str,
+        default='dataset/gridworld_8x8.npz',
+        help='Path to data file')
+    parser.add_argument('--imsize', type=int, default=8, help='Size of image')
+    parser.add_argument(
+        '--lr',
+        type=float,
+        default=0.005,
+        help='Learning rate, [0.01, 0.005, 0.002, 0.001]')
+    parser.add_argument(
+        '--epochs', type=int, default=30, help='Number of epochs to train')
+    parser.add_argument(
+        '--k', type=int, default=10, help='Number of Value Iterations')
+    parser.add_argument(
+        '--l_i', type=int, default=2, help='Number of channels in input layer')
+    parser.add_argument(
+        '--l_h',
+        type=int,
+        default=150,
+        help='Number of channels in first hidden layer')
+    parser.add_argument(
+        '--l_q',
+        type=int,
+        default=10,
+        help='Number of channels in q layer (~actions) in VI-module')
+    parser.add_argument(
+        '--batch_size', type=int, default=128, help='Batch size')
+    config = parser.parse_args()
+    # Get path to save trained model
+    save_path = "trained/vin_{0}x{0}.pth".format(config.imsize)
+    # Instantiate a VIN model
+    net = VIN(config)
+    # Loss
+    criterion = nn.CrossEntropyLoss()
+    # Optimizer
+    optimizer = optim.RMSprop(net.parameters(), lr=config.lr, eps=1e-6)
+    # Dataset transformer: torchvision.transforms
+    transform = None
+    # Define Dataset
+    trainset = GridworldData(
+        config.datafile, imsize=config.imsize, train=True, transform=transform)
+    testset = GridworldData(
+        config.datafile,
+        imsize=config.imsize,
+        train=False,
+        transform=transform)
+    # Create Dataloader
+    trainloader = torch.utils.data.DataLoader(
+        trainset, batch_size=config.batch_size, shuffle=True, num_workers=0)
+    testloader = torch.utils.data.DataLoader(
+        testset, batch_size=config.batch_size, shuffle=False, num_workers=0)
+    # Train the model
+    train(net, trainloader, config, criterion, optimizer)
+    # Test accuracy
+    test(net, testloader, config)
+    # Save the trained model parameters
+    torch.save(net.state_dict(), save_path)

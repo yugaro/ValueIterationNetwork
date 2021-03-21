@@ -22,7 +22,7 @@ def visualize(dom, states_xy, pred_traj, correct):
         label.set_fontsize('x-small')   # The legend text size
     for label in legend.get_lines():
         label.set_linewidth(0.5)        # The legend line width
-    fig.savefig('./images/result{}.pdf'.format(correct))
+    fig.savefig('./images/result{}.pdf'.format(int(correct)))
     plt.close()
 
 

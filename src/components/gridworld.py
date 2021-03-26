@@ -27,6 +27,17 @@ class GridWorld:
     def state_to_loc(self, state):
         return np.unravel_index(state, (self.n_col, self.n_row), order='F')
 
+    def move(self, row, col, action):
+        # Returns new [row,col]
+        #  if we take the action
+        r_move, c_move = self.ACTION[action]
+        new_row = max(0, min(row + r_move, self.n_row - 1))
+        new_col = max(0, min(col + c_move, self.n_col - 1))
+        if self.image[new_row, new_col] == 0:
+            new_row = row
+            new_col = col
+        return new_row, new_col
+
     def set_vals(self):
         # Setup function to initialize all necessary
 
@@ -68,7 +79,6 @@ class GridWorld:
 
         state_map_col, state_map_row = np.meshgrid(
             np.arange(0, self.n_col), np.arange(0, self.n_row))
-
         state_map_row = state_map_row.flatten('F')[non_obstacles]
         state_map_col = state_map_col.flatten('F')[non_obstacles]
 
@@ -107,7 +117,7 @@ class GridWorld:
         im[self.target_x, self.target_y] = 10
         return im
 
-    def t_get_reward_prior(self):
+    def target_get_reward_prior(self):
         # Returns reward prior as needed for
         #  dataset generation
         im = np.zeros((self.n_row, self.n_col))
@@ -167,14 +177,3 @@ class GridWorld:
     def get_size(self):
         # Returns domain size
         return self.n_row, self.n_col
-
-    def move(self, row, col, action):
-        # Returns new [row,col]
-        #  if we take the action
-        r_move, c_move = self.ACTION[action]
-        new_row = max(0, min(row + r_move, self.n_row - 1))
-        new_col = max(0, min(col + c_move, self.n_col - 1))
-        if self.image[new_row, new_col] == 0:
-            new_row = row
-            new_col = col
-        return new_row, new_col

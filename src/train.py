@@ -10,13 +10,13 @@ from utils.utils import get_stats
 from model.vin import VIN
 
 
-def train_model(model, trainloader, args, criterion, optimizer):
+def train_model(net, trainloader, args, criterion, optimizer):
     print_header()
 
     # automatically select device to make the code device agnostic
     print(torch.cuda.is_available())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
+    net = net.to(device)
 
     # loop over epochs
     for epoch in range(args.epochs):
@@ -32,7 +32,7 @@ def train_model(model, trainloader, args, criterion, optimizer):
 
             # implement backpropagation and update params
             optimizer.zero_grad()
-            outputs, predictions = model(X, S1, S2, args.num_vi)
+            outputs, predictions = net(X, S1, S2, args.num_vi)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -50,18 +50,18 @@ def train_model(model, trainloader, args, criterion, optimizer):
     print('\nFinished training. \n')
 
 
-def test_model(model, testloader, args):
+def test_model(net, testloader, args):
     total, correct = 0.0, 0.0
     # Automatically select device, device agnostic
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
+    net = net.to(device)
     for i, data in enumerate(testloader):
         # Get inputs
         X, S1, S2, labels = [d.to(device) for d in data]
         if X.size()[0] != args.batch_size:
             continue  # Drop those data, if not enough for a batch
         # Forward pass
-        outputs, predictions = model(X, S1, S2, args.num_vi)
+        outputs, predictions = net(X, S1, S2, args.num_vi)
         # Select actions with max scores(logits)
         _, predicted = torch.max(predictions, dim=1, keepdim=True)
         # Unwrap autograd.Variable to Tensor
@@ -126,11 +126,11 @@ if __name__ == '__main__':
     optimizer = optim.RMSprop(vin.parameters(), lr=args.lr, eps=1e-6)
 
     # train model
-    train_model(model=vin, trainloader=trainloader, args=args,
+    train_model(net=vin, trainloader=trainloader, args=args,
                 criterion=criterion, optimizer=optimizer)
 
     # test model
-    test_model(model=vin, testloader=testloader, args=args)
+    test_model(net=vin, testloader=testloader, args=args)
 
     # save the trained model params
     torch.save(vin.state_dict(), save_path)

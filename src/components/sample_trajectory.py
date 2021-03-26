@@ -24,19 +24,17 @@ def trace_path(pred, source, target):
     return path
 
 
-def sample_trajectory(M, n_states):
+def sample_trajectory(domain, n_states):
     # Samples trajectories from random nodes
     #  in our domain (M)
-    G, W = M.get_graph_inv()
+    G, W = domain.get_graph_inv()
     N = G.shape[0]
     if N >= n_states:
         rand_ind = np.random.permutation(N)
     else:
         rand_ind = np.tile(np.random.permutation(N), (1, 10))
-
     init_states = rand_ind[0:n_states].flatten()
-
-    goal_s = M.map_ind_to_state(M.target_x, M.target_y)
+    goal_s = domain.map_ind_to_state(domain.target_x, domain.target_y)
     states = []
     states_xy = []
     states_one_hot = []
@@ -51,10 +49,10 @@ def sample_trajectory(M, n_states):
         states.append(path)
     for state in states:
         L = len(state)
-        r, c = M.get_coords(state)
+        r, c = domain.get_coords(state)
 
-        row_m = np.zeros((L, M.n_row))
-        col_m = np.zeros((L, M.n_col))
+        row_m = np.zeros((L, domain.n_row))
+        col_m = np.zeros((L, domain.n_col))
         for i in range(L):
             row_m[i, r[i]] = 1
             col_m[i, c[i]] = 1

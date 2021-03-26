@@ -56,9 +56,8 @@ def make_data(dom_size, dom_num, max_obs_num, max_obs_size, traj_num,
             continue
         # generate gridworld from obstacle map
         G = GridWorld(im, goal[0], goal[1])
-
         # get value prior
-        value_prior = G.t_get_reward_prior()
+        value_prior = G.target_get_reward_prior()
 
         # sample random trajectories to our goal
         states_xy, states_one_hot = sample_trajectory(G, traj_num)

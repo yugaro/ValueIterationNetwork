@@ -1,6 +1,7 @@
 import sys
 import argparse
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import numpy as np
 import torch
 from model.vin import VIN
@@ -8,8 +9,10 @@ from components.gridworld import GridWorld
 from components.obstacles import obstacles
 from components.sample_trajectory import sample_trajectory
 
+import cv2
 
-def visualize(dom, states_xy, pred_traj, correct):
+
+def visualize_path(dom, states_xy, pred_traj, correct):
     fig, ax = plt.subplots()
     # implot = plt.imshow(dom, cmap="Greys_r")
     ax.imshow(dom, cmap="Greys_r")
@@ -22,8 +25,35 @@ def visualize(dom, states_xy, pred_traj, correct):
         label.set_fontsize('x-small')   # The legend text size
     for label in legend.get_lines():
         label.set_linewidth(0.5)        # The legend line width
-    fig.savefig('./images/result{}.pdf'.format(int(correct)))
+    fig.savefig('./images/path/path{}.pdf'.format(int(correct)))
     plt.close()
+
+def visualize_reward(reward_image, correct):
+    fig, ax = plt.subplots()
+    reward_map = ax.imshow(reward_image, cmap=cm.cool)
+    fig.colorbar(reward_map, ax=ax)
+    fig.savefig('./images/reward/reward{}.pdf'.format(int(correct)))
+    plt.close()
+
+
+def visualize_v_value(v_value_image, correct):
+    fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+    video = cv2.VideoWriter('./images/v_value/v_value{}.mp4'.format(
+        int(correct)), fourcc, 20.0, (560, 480))
+
+    for i in range(v_value_image.shape[0]):
+        fig, ax = plt.subplots()
+        v_value_map = ax.imshow(
+            v_value_image[i].T, cmap=cm.cool)
+        fig.colorbar(v_value_map, ax=ax)
+        fig.savefig('./images/v_value/v_value{}_{}.png'.format(int(correct), i))
+        plt.close()
+
+        img = cv2.imread(
+            './images/v_value/v_value{}_{}.png'.format(int(correct), i))
+        img = cv2.resize(img, (560, 480))
+        video.write(img)
+    video.release()
 
 
 def create_map(args):
@@ -45,7 +75,7 @@ def create_map(args):
     return im, goal, flag_map
 
 
-def predict_trajectory(im, goal, G, value_prior, states_xy, device):
+def predict_trajectory(net, im, goal, G, value_prior, states_xy, device):
     # Get number of steps to goal
     predicted_state_max_len = len(states_xy) * 2
     # Allocate space for predicted steps
@@ -69,7 +99,7 @@ def predict_trajectory(im, goal, G, value_prior, states_xy, device):
         # Get input batch
         X, S1, S2 = [d.float().to(device) for d in [X, S1, S2]]
         # Forward pass in our neural net
-        _, predictions = vin(X, S1, S2, args.num_vi)
+        _, predictions = net(X, S1, S2, args.num_vi)
         _, predicted_action = torch.max(
             predictions, dim=1, keepdim=True)
         predicted_action = predicted_action.item()
@@ -89,11 +119,11 @@ def predict_trajectory(im, goal, G, value_prior, states_xy, device):
     return pred_traj
 
 
-def path_planning(model, args):
+def path_planning(net, args):
     # automatically select device to make the code device agnostic
     print(torch.cuda.is_available())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
+    net = net.to(device)
 
     # Correct vs total:
     correct, total = 0.0, 0.0
@@ -111,13 +141,19 @@ def path_planning(model, args):
         for i in range(args.traj_num):
             if len(states_xy[i]) > 1:
                 pred_traj = predict_trajectory(
-                    im, goal, G, value_prior, states_xy[i], device)
+                    net, im, goal, G, value_prior, states_xy[i], device)
+
                 # Plot optimal and predicted path (also start, end)
                 if pred_traj[-1, 0] == goal[0] and pred_traj[-1, 1] == goal[1]:
                     correct += 1
+                    if args.plot is True:
+                        visualize_path(
+                            G.image.T, states_xy[i], pred_traj, correct)
+                        visualize_reward(
+                            -net.reward_image.T, correct)
+                        visualize_v_value(
+                            net.v_value_image, correct)
                 total += 1
-                if args.plot is True:
-                    visualize(G.image.T, states_xy[i], pred_traj, correct)
         sys.stdout.write("\r" + 'Progress: ' +
                          str(int((n_dom / args.dom_num) * 100)) + "%")
         sys.stdout.flush()
@@ -158,11 +194,11 @@ if __name__ == '__main__':
     # set args
     args = set_args()
 
-    # instantiate VIN model
+    # instantiate VIN net
     vin = VIN(args)
 
-    # load model parameters
+    # load net parameters
     vin.load_state_dict(torch.load(args.weights))
 
     # path planning
-    path_planning(model=vin, args=args)
+    path_planning(net=vin, args=args)

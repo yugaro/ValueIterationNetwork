@@ -8,8 +8,8 @@ class GridWorld:
         self.domain = domain
         self.n_row = domain.shape[0]
         self.n_col = domain.shape[1]
-        self.obstacles = np.where(self.domain == 1)
-        self.freespace = np.where(self.domain == 0)
+        self.obstacles = np.where(self.domain == 0)
+        self.freespace = np.where(self.domain == 1)
         self.target_x = target_x
         self.target_y = target_y
         self.n_states = self.n_row * self.n_col
@@ -34,7 +34,7 @@ class GridWorld:
         r_move, c_move = self.ACTION[action]
         new_row = max(0, min(row + r_move, self.n_row - 1))
         new_col = max(0, min(col + c_move, self.n_col - 1))
-        if self.domain[new_row, new_col] == 1:
+        if self.domain[new_row, new_col] == 0:
             new_row = row
             new_col = col
         return new_row, new_col
@@ -48,7 +48,7 @@ class GridWorld:
         P = np.zeros((self.n_states, self.n_states, self.n_actions))
         for row in range(self.n_row):
             for col in range(self.n_col):
-                if self.domain[row, col] == 0:
+                if self.domain[row, col] == 1:
                     curr_state = self.loc_to_state(row, col)
                     for i_action, action in enumerate(self.ACTION):
                         neighbor_row, neighbor_col = self.move(

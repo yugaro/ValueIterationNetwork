@@ -7,22 +7,18 @@ class obstacles:
                  dom=None, obs_types=None, num_types=None):
         self.domsize = domsize or []
         self.goal = goal or []
-        self.dom = dom or np.zeros(self.domsize)
+        self.dom = dom or np.ones(self.domsize)
         self.obs_types = obs_types or ["circ", "rect"]
         self.num_types = num_types or len(self.obs_types)
         self.size_max = size_max or np.max(self.domsize) / 4
 
     def check_goal(self, dom=None):
-        # Ensure goal is in free space
-        if dom is not None:
-            return np.any(dom[self.goal[0], self.goal[1]])
-        else:
-            return np.any(self.dom[self.goal[0], self.goal[1]])
+        return dom[self.goal[0], self.goal[1]] == 0
 
     def insert_rect(self, x, y, height, width):
         # Insert a rectangular obstacle into map
         im_try = np.copy(self.dom)
-        im_try[x:x + height, y:y + width] = 1
+        im_try[x:x + height, y:y + width] = 0
         return im_try
 
     def add_rand_obs(self, obj_type):
@@ -53,10 +49,10 @@ class obstacles:
     def add_border(self):
         # Make full outer border an obstacle
         im_try = np.copy(self.dom)
-        im_try[0:self.domsize[0], 0] = 1
-        im_try[0, 0:self.domsize[1]] = 1
-        im_try[0:self.domsize[0], self.domsize[1] - 1] = 1
-        im_try[self.domsize[0] - 1, 0:self.domsize[1]] = 1
+        im_try[0:self.domsize[0], 0] = 0
+        im_try[0, 0:self.domsize[1]] = 0
+        im_try[0:self.domsize[0], self.domsize[1] - 1] = 0
+        im_try[self.domsize[0] - 1, 0:self.domsize[1]] = 0
         if self.check_goal(im_try):
             return False
         else:

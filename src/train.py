@@ -86,7 +86,7 @@ def set_args():
     parser.add_argument('--dom_size', type=int,
                         default=8, help='Size of image')
     parser.add_argument('--lr', type=float,
-                        default=0.005, help='learning rate, [0.01, 0.005, 0.002, 0.001]')
+                        default=0.002, help='learning rate, [0.01, 0.005, 0.002, 0.001]')
     parser.add_argument('--epochs', type=int,
                         default=30, help='number of epochs to train')
     parser.add_argument('--num_vi', type=int,

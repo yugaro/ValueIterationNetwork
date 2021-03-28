@@ -9,7 +9,7 @@ from component.controller.search_path import search_path
 from component.view.view import visualize_path
 from component.view.view import visualize_reward
 from component.view.view import visualize_v_value
-np.random.seed(0)
+np.random.seed(1)
 
 
 def create_map(args):
@@ -36,6 +36,7 @@ def predict_trajectory(net, GW, reward_prior, paths, device):
     predicted_state_max_len = len(paths) * 2
     pred_traj = np.zeros((predicted_state_max_len, 2))
     pred_traj[0, :] = paths[0, :]
+    flag = 0
 
     for j in range(predicted_state_max_len - 1):
         # Transform current state data
@@ -65,13 +66,15 @@ def predict_trajectory(net, GW, reward_prior, paths, device):
 
         pred_traj[j + 1, 0] = current_state[0] + r_move
         pred_traj[j + 1, 1] = current_state[1] + c_move
-
+        if GW.domain[int(pred_traj[j + 1, 0]), int(pred_traj[j + 1, 1])] == 0:
+            flag = 1
+            break
         if pred_traj[j + 1, 0] == GW.target_x and pred_traj[j + 1, 1] == GW.target_y:
             pred_traj[j + 1:, 0] = GW.target_x
             pred_traj[j + 1:, 1] = GW.target_y
             break
 
-    return pred_traj
+    return pred_traj, flag
 
 
 def path_planning(net, args):
@@ -92,19 +95,20 @@ def path_planning(net, args):
         paths = search_path(GW, args.traj_num)
         for i in range(args.traj_num):
             if len(paths[i]) > 1:
-                pred_traj = predict_trajectory(
+                pred_traj, flag = predict_trajectory(
                     net, GW, reward_prior, paths[i], device)
-
+                if flag == 1:
+                    continue
                 # Plot optimal and predicted path (also start, end)
                 if pred_traj[-1, 0] == goal[0] and pred_traj[-1, 1] == goal[1]:
                     correct += 1
                     if args.plot is True:
                         visualize_path(
-                            GW.domain, paths[i], pred_traj, correct)
+                            GW.domain, paths[i], pred_traj, args.dom_size, correct)
                         visualize_reward(
-                            net.reward_image, correct)
+                            net.reward_image, args.dom_size, correct)
                         visualize_v_value(
-                            net.v_value_image, correct)
+                            net.v_value_image, args.dom_size, correct)
                 total += 1
         sys.stdout.write("\r" + 'Progress: ' +
                          str(int((n_dom / args.dom_num) * 100)) + "%")

@@ -4,7 +4,7 @@ import sys
 from component.blueprint.obstacles import obstacles
 from component.blueprint.gridworld import GridWorld
 from component.controller.search_path import search_path
-np.random.seed(0)
+np.random.seed(1)
 
 
 def create_map(args):
@@ -99,7 +99,7 @@ def set_args():
     parser.add_argument("--dom_num", "-nd", type=int,
                         help="number of domains", default=5000)
     parser.add_argument("--max_obs_num", "-no", type=int,
-                        help="maximum number of obstacles", default=10)
+                        help="maximum number of obstacles", default=20)
     parser.add_argument("--max_obs_size", "-os", type=int,
                         help="maximum obstacle size", default=2)
     parser.add_argument("--traj_num", "-nt", type=int,

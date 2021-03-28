@@ -13,7 +13,7 @@ class VIN(nn.Module):
         self.ly_hidden = nn.Conv2d(in_channels=args.num_input, out_channels=args.num_hidden,
                                    kernel_size=(3, 3), stride=1, padding=1, bias=True)
         self.ly_reward = nn.Conv2d(in_channels=args.num_hidden, out_channels=1,
-                                   kernel_size=(1, 1), stride=1, padding=0, bias=False)
+                                   kernel_size=(3, 3), stride=1, padding=1, bias=False)
         self.ly_q_value = nn.Conv2d(in_channels=1, out_channels=args.num_qlayer,
                                     kernel_size=(3, 3), stride=1, padding=1, bias=False)
         self.fc = nn.Linear(in_features=args.num_qlayer,

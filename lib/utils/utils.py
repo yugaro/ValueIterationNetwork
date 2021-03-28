@@ -4,6 +4,7 @@ import numpy as np
 def print_header():
     print(fmt_row(10, ["Epoch", "Train Loss", "Train Error", "Epoch Time"]))
 
+
 def fmt_row(width, row):
     out = " | ".join(fmt_item(x, width) for x in row)
     return out

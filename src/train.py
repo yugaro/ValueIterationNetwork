@@ -3,7 +3,7 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from components.data_generator import GridWorldData
+from component.blueprint.data_generator import GridWorldData
 from utils.utils import print_header
 from utils.utils import print_stats
 from utils.utils import get_stats
@@ -32,7 +32,7 @@ def train_model(net, trainloader, args, criterion, optimizer):
 
             # implement backpropagation and update params
             optimizer.zero_grad()
-            outputs, predictions = net(X, S1, S2, args.num_vi)
+            outputs, predictions = net(X, S1, S2, args.num_vi, visualize=False)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -52,20 +52,26 @@ def train_model(net, trainloader, args, criterion, optimizer):
 
 def test_model(net, testloader, args):
     total, correct = 0.0, 0.0
+
     # Automatically select device, device agnostic
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     net = net.to(device)
+
     for i, data in enumerate(testloader):
         # Get inputs
         X, S1, S2, labels = [d.to(device) for d in data]
         if X.size()[0] != args.batch_size:
-            continue  # Drop those data, if not enough for a batch
+            continue
+
         # Forward pass
-        outputs, predictions = net(X, S1, S2, args.num_vi)
+        outputs, predictions = net(X, S1, S2, args.num_vi, visualize=False)
+
         # Select actions with max scores(logits)
         _, predicted = torch.max(predictions, dim=1, keepdim=True)
+
         # Unwrap autograd.Variable to Tensor
         predicted = predicted.data
+
         # Compute test accuracy
         correct += (torch.eq(torch.squeeze(predicted), labels)).sum()
         total += labels.size()[0]
@@ -76,7 +82,7 @@ def set_args():
     # Parsing training parameters
     parser = argparse.ArgumentParser()
     parser.add_argument('--datafile', type=str,
-                        default='data/gridworld_8x8.npz', help='Path to data file')
+                        default='../data/gridworld_8x8.npz', help='Path to data file')
     parser.add_argument('--dom_size', type=int,
                         default=8, help='Size of image')
     parser.add_argument('--lr', type=float,
@@ -99,9 +105,6 @@ def set_args():
 if __name__ == '__main__':
     # set args
     args = set_args()
-
-    # set path to save trained model
-    save_path = 'data/vin_{0}x{0}.pth'.format(args.dom_size)
 
     # extract dataset
     transform = None
@@ -133,4 +136,5 @@ if __name__ == '__main__':
     test_model(net=vin, testloader=testloader, args=args)
 
     # save the trained model params
+    save_path = '../data/vin_{0}x{0}.pth'.format(args.dom_size)
     torch.save(vin.state_dict(), save_path)

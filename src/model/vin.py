@@ -26,6 +26,13 @@ class VIN(nn.Module):
         self.reward_image = None
         self.v_value_image = None
 
+    def eval_q_value(self, r, v):
+        return F.conv2d(
+            input=torch.cat([r, v], 1),
+            weight=torch.cat(
+                [self.ly_q_value.weight, self.weight_v_value], 1),
+            stride=1, padding=1)
+
     def forward(self, input_view, state_x, state_y, num_vi, visualize=False):
         # intermediate output
         hidden = self.ly_hidden(input_view)
@@ -45,23 +52,15 @@ class VIN(nn.Module):
             self.v_value_image = v_value.data.cpu().numpy().reshape(
                 1, self.args.dom_size, self.args.dom_size)
 
-        def eval_q_value(r, v):
-            return F.conv2d(
-                input=torch.cat([r, v], 1),
-                weight=torch.cat(
-                    [self.ly_q_value.weight, self.weight_v_value], 1),
-                stride=1,
-                padding=1)
-
         # Update q and v values
         for i in range(num_vi - 1):
-            q_value = eval_q_value(reward, v_value)
+            q_value = self.eval_q_value(reward, v_value)
             v_value, _ = torch.max(q_value, dim=1, keepdim=True)
             if visualize is True:
                 self.v_value_image = np.append(self.v_value_image, v_value.data.cpu(
                 ).numpy().reshape(1, self.args.dom_size, self.args.dom_size), axis=0)
 
-        q_value = eval_q_value(reward, v_value)
+        q_value = self.eval_q_value(reward, v_value)
 
         batch_size, l_q, _, _ = q_value.size()
 

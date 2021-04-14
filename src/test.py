@@ -99,7 +99,7 @@ def path_planning(net, args):
                     net, GW, reward_prior, paths[i], device)
                 if flag == 1:
                     continue
-                # Plot optimal and predicted path (also start, end)
+                # Plot optimal and predicted path (start, end)
                 if pred_traj[-1, 0] == goal[0] and pred_traj[-1, 1] == goal[1]:
                     correct += 1
                     if args.plot is True:

@@ -13,7 +13,7 @@ from model.vin import VIN
 def train_model(net, trainloader, args, criterion, optimizer):
     print_header()
 
-    # automatically select device to make the code device agnostic
+    # automatically select device to make code device agnostic
     print(torch.cuda.is_available())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     net = net.to(device)
